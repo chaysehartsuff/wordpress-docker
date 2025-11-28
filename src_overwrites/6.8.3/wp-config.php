@@ -12,6 +12,16 @@ if (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROT
     $_SERVER['HTTPS'] = 'on';
 }
 
+// ** SMTP Configuration for Zoho Mail ** //
+define( 'SMTP_HOST', getenv('SMTP_HOST') ?: 'smtp.zoho.com' );
+define( 'SMTP_PORT', getenv('SMTP_PORT') ?: '465' ); // Use 587 for TLS, 465 for SSL
+define( 'SMTP_SECURE', getenv('SMTP_SECURE') ?: 'ssl' ); // 'ssl' or 'tls'
+define( 'SMTP_AUTH', true );
+define( 'SMTP_USERNAME', getenv('SMTP_USERNAME') ?: 'noreply@yourdomain.com' );
+define( 'SMTP_PASSWORD', getenv('SMTP_PASSWORD') ?: '' );
+define( 'SMTP_FROM', getenv('SMTP_FROM') ?: 'noreply@yourdomain.com' );
+define( 'SMTP_FROM_NAME', getenv('SMTP_FROM_NAME') ?: 'Your Site Name' );
+
 // Force WordPress to use HTTPS URLs
 define('FORCE_SSL_ADMIN', true);
 

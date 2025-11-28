@@ -103,7 +103,7 @@ function run {
 }
 
 function apply_overwrites {
-    local overwrites_dir="$SCRIPT_DIR/../backups/src_overwrites/${WORDPRESS_INSTALL_VERSION}"
+    local overwrites_dir="$SCRIPT_DIR/../src_overwrites/${WORDPRESS_INSTALL_VERSION}"
     local src_dir="$SCRIPT_DIR/../src"
     
     echo
