@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  wordpress:
+    build:
+      context: ./dockerfiles
+      dockerfile: wp.dockerfile
+    container_name: ${APP_CONTAINER_NAME}
+    restart: unless-stopped
+    environment:
+      DB_HOST: ${DB_HOST}
+      DB_PORT: 3306
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_DATABASE: ${DB_DATABASE}
+      WP_TABLE_PREFIX: wp_
+      WORDPRESS_DEBUG: 1
+    volumes:
+      - ./php/php.ini:/usr/local/etc/php/conf.d/custom.ini
+      - ./src:/var/www/html:Z
+      - ./apache/sites-enabled:/etc/apache2/sites-enabled:Z
+    ports:
+        - "${APP_PORT}:${APP_PORT}"
+    depends_on:
+      - mysql
+    networks:
+      - local_network
+
+  mysql:
+    image: mysql:latest
+    container_name: ${DB_CONTAINER_NAME}
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
+      MYSQL_DATABASE: ${DB_DATABASE}
+      MYSQL_USER: ${DB_USERNAME}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - local_network
+    ports:
+      - "${DB_PORT}:3306"
+
+volumes:
+  mysql_data:
+
+networks:
+  local_network:
+    driver: bridge
