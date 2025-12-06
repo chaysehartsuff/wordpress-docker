@@ -24,6 +24,8 @@ declare -A FLAGS=(
     ["restore-mysql"]="restore_mysql"
     ["backup-docker-images"]="backup_docker_images"
     ["restore-docker-images"]="restore_docker_images"
+    ["backup-wordpress"]="backup_wordpress"
+    ["restore-wordpress"]="restore_wordpress"
     ["check-external-network"]="check_external_network"
 )
 declare -A FLAG_DESCRIPTIONS=(
@@ -33,6 +35,8 @@ declare -A FLAG_DESCRIPTIONS=(
     ["restore-mysql"]="Restores most recent MySQL database backup"
     ["backup-docker-images"]="Backup Docker images"
     ["restore-docker-images"]="Restores Docker images from backup"
+    ["backup-wordpress"]="Backup essential wordpress data"
+    ["restore-wordpress"]="Restores essential wordpress data from backup"
     ["check-external-network"]="Returns status of external network"
 )
 
@@ -75,14 +79,8 @@ function run {
     echo "Connecting containers to server network..."
     connect_to_network $APP_CONTAINER_NAME $EXTERNAL_NETWORK
 
-    # Set permissions based on environment
-    if [[ "$APP_ENV" == "dev" ]]; then
-        echo "Setting loose permissions on local environment..."
-        sudo chmod -R 777 ./src
-    elif [[ "$APP_ENV" == "prod" ]]; then
-        echo "Setting stricter permissions on production environment..."
-        sudo chmod -R 750 ./src
-    fi
+    # set perms so themes and plugins can be installed directly
+    sudo chmod -R 777 ./src
 
     echo "Application setup complete!"
 }
@@ -92,6 +90,74 @@ function restart {
     run
 }
 
+# ... existing code
+function restart {
+    $DOCKER_CMD down
+    run
+}
+
+function restore_wordpress {
+    local BACKUP_DIR="$SCRIPT_DIR/../backups/wp-content"
+    local DEST_DIR="$SCRIPT_DIR/../src"
+
+    # Find the latest backup file
+    local LATEST_BACKUP=$(ls -t "$BACKUP_DIR"/*.tar.gz 2>/dev/null | head -n 1)
+
+    if [ -z "$LATEST_BACKUP" ]; then
+        color "yellow" "⚠️ No backup files found in $BACKUP_DIR. Skipping restore."
+        exit 0
+    fi
+
+    color "blue" "📦 Restoring WordPress 'wp-content' from $LATEST_BACKUP..."
+
+    # Remove the existing wp-content directory for a clean restore
+    if [ -d "$DEST_DIR/wp-content" ]; then
+        color "yellow" "Removing existing 'wp-content' directory..."
+        rm -rf "$DEST_DIR/wp-content"
+    fi
+
+    # Extract the backup into the src directory. The archive contains the 'wp-content' folder.
+    tar -xzf "$LATEST_BACKUP" -C "$DEST_DIR"
+
+    if [ $? -eq 0 ]; then
+        color "green" "✅ Successfully restored 'wp-content' from $LATEST_BACKUP"
+    else
+        color "red" "❌ Failed to restore 'wp-content'"
+        exit 1
+    fi
+
+    exit 0
+}
+
+function backup_wordpress {
+    local BACKUP_DIR="$SCRIPT_DIR/../backups/wp-content"
+    local TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
+    local BACKUP_FILE="$BACKUP_DIR/wp-content-backup_$TIMESTAMP.tar.gz"
+    local SOURCE_DIR="$SCRIPT_DIR/../src/wp-content"
+
+    # Create backup directory if it doesn't exist
+    mkdir -p "$BACKUP_DIR"
+
+    # Check if source directory exists
+    if [ ! -d "$SOURCE_DIR" ]; then
+        color "red" "❌ Source directory does not exist: $SOURCE_DIR"
+        exit 1
+    fi
+
+    color "blue" "📦 Backing up WordPress 'wp-content' directory to $BACKUP_FILE..."
+
+    # Create a gzipped tarball. -C changes directory to avoid including parent paths in the archive.
+    tar -czf "$BACKUP_FILE" -C "$(dirname "$SOURCE_DIR")" "$(basename "$SOURCE_DIR")"
+
+    if [ $? -eq 0 ]; then
+        color "green" "✅ Successfully backed up 'wp-content' to $BACKUP_FILE"
+    else
+        color "red" "❌ Failed to backup 'wp-content'"
+        exit 1
+    fi
+
+    exit 0
+}
 
 function backup_mysql {
     local BACKUP_DIR="$SCRIPT_DIR/../backups/mysql"
@@ -103,8 +169,8 @@ function backup_mysql {
     
     echo "Backing up MySQL database to $BACKUP_FILE..."
     
-    # Use docker_exec to run mysqldump inside the container
-    docker_exec "$DB_CONTAINER_NAME" "mysqldump -h $DB_HOST -P 3306 -u $DB_USERNAME -p$DB_PASSWORD $DB_DATABASE > /tmp/db_backup.sql" "/"
+    # Use docker_exec to run mysqldump inside the container with memory optimization flags
+    docker_exec "$DB_CONTAINER_NAME" "mysqldump --single-transaction --quick -h $DB_HOST -P 3306 -u $DB_USERNAME -p$DB_PASSWORD $DB_DATABASE > /tmp/db_backup.sql" "/"
     
     # Copy the backup file from the container to the host
     docker cp "$DB_CONTAINER_NAME:/tmp/db_backup.sql" "$BACKUP_FILE"
@@ -126,16 +192,16 @@ function restore_mysql {
     
     # Check if backup directory exists
     if [ ! -d "$BACKUP_DIR" ]; then
-        color "red" "❌ Backup directory does not exist: $BACKUP_DIR"
-        exit 1
+        color "yellow" "⚠️ Backup directory does not exist: $BACKUP_DIR. Skipping restore."
+        exit 0
     fi
     
     # Find the latest backup file
     local LATEST_BACKUP=$(ls -t "$BACKUP_DIR"/*.sql 2>/dev/null | head -n 1)
     
     if [ -z "$LATEST_BACKUP" ]; then
-        color "red" "❌ No backup files found in $BACKUP_DIR"
-        exit 1
+        color "yellow" "⚠️ No backup files found in $BACKUP_DIR. Skipping restore."
+        exit 0
     fi
     
     echo "Restoring MySQL database from $LATEST_BACKUP..."

@@ -21,6 +21,7 @@ define( 'SMTP_USERNAME', getenv('SMTP_USERNAME') ?: 'noreply@yourdomain.com' );
 define( 'SMTP_PASSWORD', getenv('SMTP_PASSWORD') ?: '' );
 define( 'SMTP_FROM', getenv('SMTP_FROM') ?: 'noreply@yourdomain.com' );
 define( 'SMTP_FROM_NAME', getenv('SMTP_FROM_NAME') ?: 'Your Site Name' );
+define('FS_METHOD', 'direct');
 
 // Force WordPress to use HTTPS URLs
 define('FORCE_SSL_ADMIN', true);
